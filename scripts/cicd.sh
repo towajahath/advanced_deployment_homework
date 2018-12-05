@@ -13,7 +13,7 @@ oc policy add-role-to-group edit system:serviceaccounts:cicd-dev -n tasks-prod
 
 # Deploy Demo
 oc new-app -n cicd-dev jenkins-persistent
-oc new-app -n cicd-dev -f /root/advanced_homework/yaml/cicd-template.yaml
+oc new-app -n cicd-dev -f /root/advanced_deployment_homework/yaml/cicd-template.yaml
 
 # Waiting for project to complete  and then Start Pipeline
 echo "Waiting for cicd-demo-installer to complete..."
