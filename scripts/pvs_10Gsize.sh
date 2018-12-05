@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-
-export GUID=`hostname|awk -F. '{print $2}'`
 export volsize="10Gi"
+mkdir -p /root/pvs
 
 for volume in pv{26..50} ; do
 cat << EOF > /root/pvs/${volume}
@@ -25,4 +23,4 @@ cat << EOF > /root/pvs/${volume}
 }
 EOF
 echo "Created def file for ${volume}";
-done;
+done

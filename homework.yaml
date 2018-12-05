@@ -1,6 +1,37 @@
 ---
-- name: OpenShift Pre-install
-  import_playbook: ./playbooks/openshift_preinstall.yaml
+- name: Prepare GUID environment variable across all hosts
+  hosts: all
+  tasks:
+    - name: All GUID env variable
+      shell: export GUID=`hostname | cut -d"." -f2`; echo "export GUID=$GUID" >> $HOME/.bashrc
+
+- name: Verify Installation and Configuration of Docker
+  hosts: nodes
+  tasks:
+    - name: docker restart
+      shell: systemctl restart docker
+
+- name: Verify NFS Shared Volumes on Hosts
+  hosts: nfs
+  tasks:
+    - name: List NFS Shared Volumes
+      shell: exportfs
+
+- name: Install packages and config auth
+  hosts: localhost
+  tasks:
+    - name: required packages are present
+      yum:
+        name:
+          - openshift-ansible
+          - atomic-openshift-clients
+        state: present
+
+- name: Generate Inventory Hosts File
+  hosts: localhost
+  tasks:
+    - name: Generate Inventory script
+      script: /root/advanced_homework/scripts/generate_inventory.sh
 
 - name: Execute the openshift-ansible prerequisites
   import_playbook: /usr/share/ansible/openshift-ansible/playbooks/prerequisites.yml
@@ -8,48 +39,175 @@
 - name: Execute the openshift-ansible Deployer
   import_playbook: /usr/share/ansible/openshift-ansible/playbooks/deploy_cluster.yml
 
-- name: OpenShift Post-install
-  import_playbook: ./playbooks/openshift_postinstall.yaml
+- name: Verify OpenShift Cluster
+  hosts: masters[0]
+  tasks:
+    - name: copy the .kube directory from master1 to your bastion
+      fetch:
+        src: /root/.kube/config
+        dest: /root/.kube/config
+        flat: yes
+        
+- name: Post installation configuration
+  hosts: localhost
+  tasks:
+    - name: Verify logged in User is system:dmin
+      shell: oc whoami | grep system:admin
+
+- name: Create PVs
+  hosts: nfs
+  tasks:
+    - name: Create PV directories
+      script: /root/advanced_homework/scripts/create_pvs.sh
+
+- name: Restart nfs-server
+  hosts: nfs
+  tasks:
+    - name: Restarting NFS Server...
+      shell: systemctl restart nfs-server
+
+- name: Create 25 definitions files for PVs 5G size
+  hosts: localhost
+  tasks:
+    - name: Create ReadWriteOnce PV definitions
+      script: /root/advanced_homework/scripts/pvs_5Gsize.sh
+
+- name: Create 25 definitions files for PVs 10G size
+  hosts: localhost
+  tasks:
+    - name: Create ReadWriteMany PV definitions
+      script: /root/advanced_homework/scripts/pvs_10Gsize.sh
+
+- name: Create all PVs from definitions files
+  hosts: localhost
+  tasks:
+    - name: Create all defined PVs
+      shell: cat /root/pvs/* | oc create -f -
+
+- name: Set NFS Persistent Volume Recycling
+  hosts: nodes
+  tasks:
+    - name: Pull Latest OSE-Recycler Image
+      shell: docker pull registry.access.redhat.com/openshift3/ose-recycler:latest
+    - name: Tag OSE-Recycler Image
+      shell: docker tag registry.access.redhat.com/openshift3/ose-recycler:latest registry.access.redhat.com/openshift3/ose-recycler:v3.11.16
+
+- name: Add admin user
+  hosts: masters
+  tasks:
+    - name: Creating user admin
+      shell: htpasswd -b /etc/origin/master/htpasswd admin r3dh4t1! 
+
+- name: Add admin policy
+  hosts: localhost
+  tasks:
+    - name: Add admin to cluster-admin role 
+      shell: oc adm policy add-cluster-role-to-user cluster-admin admin
 
 - name: Smoke Test
-  import_playbook: ./playbooks/smoke_test_install.yaml
+  hosts: localhost
+  tasks:
+    - name: Create a Smoke Test Application
+      script: /root/advanced_homework/scripts/nodejs_mongo_app.sh
 
-- name: Creation of Cluster Admin
-  import_playbook: ./playbooks/cluster_admin_users.yaml
+- name: Pipeline Setup
+  hosts: localhost
+  tasks:
+    - name: pipeline setup
+      script: /root/advanced_homework/scripts/cicd.sh 
 
-- name: CICD Workflow with Jenkins
-  import_playbook: ./playbooks/cicd_workflow_jenkins.yaml
+- name: Create users
+  hosts: masters
+  tasks:
+    - name: Creating users in Master htpasswd file 
+      command: "htpasswd -b /etc/origin/master/htpasswd {{ item }}"
+      with_items:
+        - Amy r3dh4t1! 
+        - Andrew r3dh4t1! 
+        - Brian r3dh4t1! 
+        - Betty r3dh4t1! 
+        - Chris r3dh4t1! 
+        - Cody r3dh4t1! 
 
-- name: CICD Workflow for OpenShift-Tasks Projects
-  import_playbook: ./playbooks/cicd_workflow_projects.yaml
+- name: Setting default and project-request 
+  hosts: localhost
+  tasks:
+    - name: Label default project
+      shell: oc label namespace default name=default
+    - name: Apply project request
+      shell: oc project default; oc apply -f /root/advanced_homework/yaml/project-request.yaml
 
-- name: HPA configuration on production deployment of openshift-tasks
-  import_playbook: ./playbooks/client_application_hpa.yaml
+- name: Set defaults for new projects
+  hosts: masters
+  tasks:
+    - name: Set project request template as default
+      replace:
+        path: /etc/origin/master/master-config.yaml
+        regexp: "projectRequestTemplate: ''"
+        replace: "projectRequestTemplate: \"default/project-request\""
+        backup: yes
 
-- name: CICD Workflow Pipeline
-  import_playbook: ./playbooks/cicd_workflow_pipeline.yaml
-  
-- name: Creation of Projects for GWAR (alpha), Hatebreed (beta) and Common clients
-  import_playbook: ./playbooks/client_projects.yaml
-  
-- name: Creation of Users for GWAR (alpha), Hatebreed (beta) and Common clients
-  import_playbook: ./playbooks/client_users.yaml
+- name: Restart master api and controllera
+  hosts: masters
+  tasks:
+    - name: Restart masters api and controllers
+      command: "/usr/local/bin/master-restart {{ item }}"
+      with_items:
+        - api
+        - controllers
+      retries: 10
+      delay: 10
+      register: result
+      until: result.rc == 0
 
-- name: Creation of Groups for GWAR (alpha), Hatebreed (beta) and Common clients
-  import_playbook: ./playbooks/client_groups.yaml  
-
-#- name: Disable Self-Provisioning for Non-Project Admin and Non-Cluster Admin Users
-#  import_playbook: ./playbooks/disable_self-provisioning.yaml
-
-#- name: Smoke Test Clients
-#  import_playbook: ./playbooks/smoke_test_clients.yaml
-
-
-
-
-  
-  
-  
-  
-  
-
+- name: Setting project configs
+  hosts: localhost
+  tasks:
+    - name: Creating client projects
+      command: "oc adm new-project {{ item }}"
+      with_items:
+        - alpha  --display-name="Alpha" --node-selector='client=alpha'
+        - beta  --display-name="Beta" --node-selector='client=beta'
+        - common --display-name="Common"
+      retries: 3 
+      delay: 5
+      register: result
+      until: result.rc == 0
+    - name: Creating users in openshift 
+      command: "oc create user {{ item }}"
+      with_items:
+        - Amy
+        - Andrew
+        - Brian
+        - Betty
+        - Chris
+        - Cody
+    - name: Creating groups with users 
+      command: "oc adm groups new {{ item }}"
+      with_items:
+        - alpha Amy Andrew
+        - beta Betty Brian
+        - common Chris Cody
+    - name: Creating labels
+      command: "oc label {{ item }}"
+      with_items:
+        - group/alpha client=alpha
+        - group/beta client=beta
+        - group/common client=common
+    - name: Creating user labels
+      command: "oc label user {{ item }}"
+      with_items:
+        - Amy client=alpha
+        - Andrew client=alpha
+        - Betty client=beta
+        - Brian client=beta
+        - Chris client=common
+        - Cody client=common
+    - name: Adding admin role to group for project
+      command: "oadm policy add-role-to-group admin {{ item }}"
+      with_items:
+        - alpha -n alpha
+        - beta -n beta
+        - common -n common
+    - name: Remove self-provisioner role
+      shell: oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth
