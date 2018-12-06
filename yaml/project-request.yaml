@@ -41,7 +41,7 @@ objects:
 - apiVersion: "v1"
   kind: "LimitRange"
   metadata:
-    name: "project-request-limits"
+    name: "limits"
   spec:
     limits:
       - type: "Pod"
