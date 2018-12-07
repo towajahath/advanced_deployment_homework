@@ -17,12 +17,7 @@ oc new-app -n cicd-dev -f /root/advanced_deployment_homework/yaml/cicd-template.
 
 # Waiting for project to complete  and then Start Pipeline
 echo "Waiting for cicd-demo-installer to complete..."
-sleep 30
-while [ ! `oc get pod | grep 'cicd-demo-installer.*Completed' | awk '{print $1}'` ]; do
-   echo "..."
-   sleep 30
-done
-
+sleep 300
 echo "Starting Pipeline: tasks-pipeline..."
 oc start-build tasks-pipeline
 
