@@ -1,5 +1,4 @@
 # ansible inventory for OpenShift Container Platform  3.11.16
-# Ox Gibson - ox@prolifics.com
 
 [OSEv3:vars]
 
