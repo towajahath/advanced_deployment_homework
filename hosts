@@ -22,7 +22,7 @@ osm_default_node_selector='client=common'
 openshift_hosted_infra_selector='env=infra'
 openshift_image_tag=v3.11.146
 openshift_pkg_version=-3.11.146
-openshift_release=3.11
+openshift_release="3.11"
 
 # Node Groups
 openshift_node_groups=[{'name': 'node-config-master', 'labels': ['node-role.kubernetes.io/master=true','runtime=docker','env=master','cluster=GUID']}, {'name': 'node-config-infra', 'labels': ['node-role.kubernetes.io/infra=true','runtime=docker','env=infra','cluster=GUID']}, {'name': 'node-config-alpha', 'labels': ['node-role.kubernetes.io/compute=true','runtime=docker','client=alpha','cluster=GUID'], 'edits': [{ 'key': 'kubeletArguments.pods-per-core','value': ['20']}]}, {'name': 'node-config-beta', 'labels': ['node-role.kubernetes.io/compute=true','runtime=docker','client=beta','cluster=GUID'], 'edits': [{ 'key': 'kubeletArguments.pods-per-core','value': ['20']}]}, {'name': 'node-config-compute', 'labels': ['node-role.kubernetes.io/compute=true','runtime=docker','client=common','cluster=GUID'], 'edits': [{ 'key': 'kubeletArguments.pods-per-core','value': ['20']}]}]
